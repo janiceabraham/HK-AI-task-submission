@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CSE Credit Calculator</title>
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--ink:#1d1d1b;--mute:#6b6a65;--line:#e3e1da;--keep:#6b6a65;--update:#2563a8;--reduce:#b5651d;--add:#2f7d4f;--warn:#b42318}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#1f1f1d;--ink:#eceae4;--mute:#a09e97;--line:#33322f;--update:#6aa3e0;--reduce:#e09a55;--add:#5fbf86;--keep:#a09e97;--warn:#f0857a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;padding:16px}
+.wrap{max-width:980px;margin:0 auto}h1{font-size:20px;margin:0 0 4px}p.sub{color:var(--mute);margin:0 0 16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}.stat b{display:block;font-size:22px}.stat span{color:var(--mute);font-size:12px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+select,input{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.chip{border:1px solid var(--line);border-radius:999px;padding:5px 10px;cursor:pointer;background:var(--card);user-select:none}
+.chip.on{border-color:currentColor;font-weight:600}
+.semgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:14px}
+.sem{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px}.sem b{font-size:16px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:12px;color:var(--mute);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums}.tag{font-size:11px;font-weight:700;letter-spacing:.03em}
+.KEEP{color:var(--keep)}.UPDATE{color:var(--update)}.REDUCE{color:var(--reduce)}.ADD{color:var(--add)}
+.scroll{overflow-x:auto}.warn{color:var(--warn)}small{color:var(--mute)}
+</style>
+</head>
+<body><div class="wrap">
+<h1>B.Tech CSE credit calculator</h1>
+<p class="sub">IFHE Handbook 2023-24 vs. proposed redesign. Toggle any proposed change to see its effect on totals and % of credits touched.</p>
+<div class="stats">
+ <div class="stat"><b id="tOld">-</b><span>Original total (recomputed)</span></div>
+ <div class="stat"><b id="tNew">-</b><span>Proposed total</span></div>
+ <div class="stat"><b id="tTouch">-</b><span>Credits touched</span></div>
+ <div class="stat"><b id="tPct">-</b><span>% of 163 touched (target 20-25%)</span></div>
+</div>
+<div class="semgrid" id="sems"></div>
+<div class="controls">
+ <select id="fSem"><option value="">All semesters</option></select>
+ <span class="chip on KEEP" data-a="KEEP">KEEP</span><span class="chip on UPDATE" data-a="UPDATE">UPDATE</span>
+ <span class="chip on REDUCE" data-a="REDUCE">REDUCE</span><span class="chip on ADD" data-a="ADD">ADD</span>
+ <input id="q" placeholder="Search course or code">
+</div>
+<div class="scroll"><table><thead><tr><th>Apply</th><th>Sem</th><th>Code</th><th>Course</th><th>Action</th><th class="n">Old</th><th class="n">New</th><th>Note</th></tr></thead><tbody id="rows"></tbody></table></div>
+<p><small>Semesters VII and VIII (15 each) and IP201 summer internship (3) are fixed. Handbook states 163 total; the table sums to 166 because Sem IV actually totals 24, not 23.</small></p>
+</div>
+<script>
+const C=[
+["I","MA101","Linear Algebra & ODE",3,3,"KEEP",""],["I","EG101","English Language Skills",3,3,"KEEP",""],["I","MT101","Digital Fabrication",3,3,"KEEP",""],
+["I","PH101","Physics",5,4,"REDUCE","3-1-2 to 3-0-2"],["I","CH101","Chemistry",4,3,"REDUCE","Drop lab"],["I","CS101","Computer Programming",4,4,"KEEP",""],["I","HS101","Indian Traditional Knowledge (audit)",0,0,"KEEP",""],
+["II","MA102","Higher Calculus",3,3,"KEEP",""],["II","EG102","Professional Communication",3,3,"KEEP",""],["II","EC101","Basic Electronics",4,4,"KEEP",""],["II","DS101","Intro to DS & AI",3,3,"KEEP",""],
+["II","CH102","Environmental Sciences",2,2,"KEEP","AICTE mandatory"],["II","CS102","Data Structures",4,4,"KEEP",""],["II","MT102","Engineering Graphics",3,2,"REDUCE","Trim lecture"],
+["III","EC201","Intro to IoT",3,3,"KEEP",""],["III","CS201","OOP Concepts",4,4,"KEEP",""],["III","MA201","Integral Transforms & Prob/Stats",3,3,"KEEP",""],["III","CS202","Theory of Computation",3,3,"KEEP",""],
+["III","CS203","Design & Analysis of Algorithms",3,3,"KEEP",""],["III","MG201","Engg. Economics & Mgmt",3,3,"KEEP",""],["III","MA202","Discrete Mathematics",3,3,"KEEP",""],["III","CR201","Power Skills I",1,1,"KEEP",""],
+["IV","EC102","Fundamentals of Signal Processing",3,0,"REDUCE","Moved to elective pool; add signals module to CS305"],["IV","CS204","Computer Org. & Architecture",3,3,"KEEP",""],["IV","HSXXX","Digital Humanities Elective",3,3,"KEEP",""],
+["IV","CS205","Web & API Engineering (was Web 3.0)",4,4,"UPDATE","REST APIs, JS, auth"],["IV","DS202","Industry Coding Practice",3,3,"UPDATE","Python, Git, testing"],["IV","DS203","Data Science",3,3,"KEEP",""],
+["IV","CS206","Database Management System",4,4,"KEEP",""],["IV","CR202","Power Skills II",1,1,"KEEP",""],["IV","NEW1","Responsible AI & Technology Ethics",0,2,"ADD","2-0-0"],
+["V","CS301","Principles of Cryptography",3,3,"KEEP",""],["V","CS302","Operating Systems",4,4,"KEEP",""],["V","CS303","Compiler Construction",3,3,"KEEP",""],
+["V","DS304","Machine Learning",4,4,"UPDATE","Add LLM fundamentals unit"],["V","CS304","Software Engineering",3,3,"UPDATE","2-0-2: Git, CI/CD, testing"],["V","CSXXX","Elective (Core)",3,3,"KEEP",""],
+["V","CR301","Power Skills III",1,1,"KEEP",""],["V","NEW2","AI-Assisted Engineering Lab (Task 1 workflow)",0,2,"ADD","0-0-4"],
+["VI","CS305","Computer Vision",3,3,"KEEP","Absorbs signals module"],["VI","CS306","Computer Networks",4,4,"KEEP",""],["VI","DS307","Big Data Systems",3,3,"KEEP",""],
+["VI","CS307","Cloud Computing",4,4,"UPDATE","Docker, Kubernetes, serverless"],["VI","CSXXX","Elective (Core)",3,3,"KEEP",""],["VI","SP301","Special Project",3,3,"KEEP","Capstone path for lab"],
+["VI","CR302","Power Skills IV",1,1,"KEEP",""],["VI","NEW3","LLM Applications & Evaluation",0,2,"ADD","1-0-2"]
+].map(r=>({sem:r[0],code:r[1],name:r[2],old:r[3],nw:r[4],act:r[5],note:r[6],on:true}));
+const FIXED={"Summer":3,"VII":15,"VIII":15},SEMS=["I","II","III","IV","V","VI"];
+const filt={acts:new Set(["KEEP","UPDATE","REDUCE","ADD"]),sem:"",q:""};
+const $=id=>document.getElementById(id);
+SEMS.forEach(s=>$("fSem").insertAdjacentHTML("beforeend",`<option>${s}</option>`));
+function credits(c){return c.act==="KEEP"||!c.on?c.old:c.nw}
+function render(){
+ let old=0,nw=0,touch=0,bySem={};
+ C.forEach(c=>{old+=c.old;nw+=credits(c);if(c.act!=="KEEP"&&c.on)touch+=Math.max(c.old,c.nw);
+  bySem[c.sem]=bySem[c.sem]||{o:0,n:0};bySem[c.sem].o+=c.old;bySem[c.sem].n+=credits(c)});
+ const fx=Object.values(FIXED).reduce((a,b)=>a+b,0);
+ $("tOld").textContent=old+fx;$("tNew").textContent=nw+fx;$("tTouch").textContent=touch;
+ const pct=touch/163*100;$("tPct").textContent=pct.toFixed(1)+"%";$("tPct").className=(pct<20||pct>25)?"warn":"";
+ $("sems").innerHTML=SEMS.map(s=>`<div class="sem">Sem ${s}<br><b>${bySem[s].n}</b> <small>was ${bySem[s].o}</small></div>`).join("")+
+  Object.entries(FIXED).map(([k,v])=>`<div class="sem">${k}<br><b>${v}</b> <small>fixed</small></div>`).join("");
+ $("rows").innerHTML=C.map((c,i)=>{
+  if(!filt.acts.has(c.act)||(filt.sem&&c.sem!==filt.sem))return"";
+  if(filt.q&&!(c.code+" "+c.name).toLowerCase().includes(filt.q))return"";
+  const box=c.act==="KEEP"?"":`<input type="checkbox" data-i="${i}" ${c.on?"checked":""} aria-label="Apply change to ${c.code}">`;
+  return`<tr><td>${box}</td><td>${c.sem}</td><td>${c.code}</td><td>${c.name}</td><td class="tag ${c.act}">${c.act}</td><td class="n">${c.old}</td><td class="n">${credits(c)}</td><td><small>${c.note}</small></td></tr>`}).join("");
+}
+document.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{const a=ch.dataset.a;filt.acts.has(a)?filt.acts.delete(a):filt.acts.add(a);ch.classList.toggle("on");render()});
+$("fSem").onchange=e=>{filt.sem=e.target.value;render()};
+$("q").oninput=e=>{filt.q=e.target.value.toLowerCase();render()};
+$("rows").onchange=e=>{const i=e.target.dataset.i;if(i!==undefined){C[i].on=e.target.checked;render()}};
+render();
+</script>
+</body></html>
